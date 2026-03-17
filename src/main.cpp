@@ -1,6 +1,10 @@
 #include "matplotlibcpp.h"
+#include <ATen/core/Generator.h>
 #include <ATen/core/interned_strings.h>
+#include <ATen/core/ivalue.h>
+#include <ATen/ops/arange.h>
 #include <ATen/ops/log.h>
+#include <ATen/ops/matmul.h>
 #include <ATen/ops/one_hot.h>
 #include <ATen/ops/tensor.h>
 #include <ATen/ops/xlogy_ops.h>
@@ -123,11 +127,30 @@ void bigram_model(){
     torch::Tensor nll = -log_likelihood;
     std::cout << "Negative log likelihood = " << nll << std::endl;
     std::cout << "loss = " << nll/n << std::endl;
-}
-
-
-void neural_network(){
-
+    std::cout << std::endl;
+    auto g = at::make_generator<at::CPUGeneratorImpl>(2147483647);
+    c10::TensorOptions t = c10::TensorOptions();
+    t = t.requires_grad( true);
+    torch::Tensor W = torch::randn({27,27}, g, t);
+    torch::Tensor xenc, logits, counts, probs, ts, loss;
+    for(int i = 0; i < 150; i++){
+        xenc = torch::one_hot(xs, 27).to(torch::kFloat32);
+        logits = torch::matmul(xenc, W);
+        counts = logits.exp();
+        probs = counts / counts.sum(1, true);
+        ts = torch::arange(xs.size(0));
+        loss = -probs.index({ts, ys}).log().mean() + 0.01 * W.pow(2.0).mean();
+        W.mutable_grad() = torch::Tensor();
+        loss.backward();
+        {
+            torch::NoGradGuard no_grad;
+            W.data() -= 50.0 * W.grad();
+        }
+    }
+    INSERT_NEW_LINE();
+    INSERT_NEW_LINE();
+    std::cout << loss << std::endl;
+    return;
 }
 
 int main(){
@@ -138,6 +161,7 @@ int main(){
     create_vocabulary(words, stoi, itos);
     torch::Tensor xs, ys;
     create_dataset(words,xs, ys, stoi);
+    bigram_model();
 #ifdef DEBUG
     std::cout << xs.size(0);
     INSERT_NEW_LINE();
