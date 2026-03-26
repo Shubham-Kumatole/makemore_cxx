@@ -5,6 +5,7 @@
 #include <ATen/ops/arange.h>
 #include <ATen/ops/log.h>
 #include <ATen/ops/matmul.h>
+#include <ATen/ops/multinomial.h>
 #include <ATen/ops/one_hot.h>
 #include <ATen/ops/tensor.h>
 #include <ATen/ops/xlogy_ops.h>
@@ -14,6 +15,7 @@
 #include <torch/headeronly/core/DeviceType.h>
 #include <torch/torch.h>
 #include <torch/types.h>
+#include <torch/utils.h>
 #include <unordered_map>
 #define INSERT_NEW_LINE() std::cout<<std::endl
 
@@ -150,6 +152,22 @@ void bigram_model(){
     INSERT_NEW_LINE();
     INSERT_NEW_LINE();
     std::cout << loss << std::endl;
+    INSERT_NEW_LINE();
+    INSERT_NEW_LINE();
+    std::cout << " Running inference loop five times " << std::endl;
+    for(int i = 0; i < 5; i++){
+        int ix = 0;
+        do{
+            torch::NoGradGuard no_grad;
+            xenc = torch::one_hot( torch::tensor(ix), 27).to(torch::kFloat32);
+            logits = torch::matmul(xenc, W);
+            counts = logits.exp();
+            probs = counts / counts.sum();
+            ix = torch::multinomial(probs, 1, true, g).item().toInt();
+            std::cout << itos[ix];
+        } while(ix != 0);
+        std::cout << std::endl;
+    }
     return;
 }
 
