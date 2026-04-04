@@ -1,3 +1,4 @@
+#include "matplotlibcpp.h"
 
 void plot_bigram(torch::Tensor& N, std::unordered_map<int, char>& itos){
     matplotlibcpp::backend("Agg"); // use Agg to avoid the macOS threading crash

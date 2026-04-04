@@ -15,10 +15,12 @@
 // #include "bigram.h"
 #include "common.h"
 
-#define USE_BIGRAM_MODEL 0
-#define USE_MLP_MODEL 1
+#define USE_BIGRAM_MODEL 1
+#define USE_MLP_MODEL 0
 
-#if USE_MLP_MODEL
+#ifdef USE_BIGRAM_MODEL
+#include "bigram.h"
+#elif USE_MLP_MODEL
 	#include "mlp.h"
 #endif
 
