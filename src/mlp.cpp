@@ -1,4 +1,7 @@
 #include "mlp.h"
+#include "matplotlibcpp.h"
+#include <ATen/core/grad_mode.h>
+#include <torch/nn/functional/loss.h>
 
 void MLP::build_dataset() {
   std::vector<std::string> words;
@@ -105,7 +108,7 @@ void MLP::train_model(int num_training_loops) {
   }
   for (int i = 0; i < num_training_loops; i++) {
     torch::Tensor ix = torch::randint(0, Xtr.size(0), {BATCH_SIZE});
-    torch::Tensor emb = C.index({X.index({ix})});
+    torch::Tensor emb = C.index({Xtr.index({ix})});
     torch::Tensor h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
                           .matmul(W1)
                           .add(b1)
@@ -120,6 +123,9 @@ void MLP::train_model(int num_training_loops) {
     lossi.push_back(loss.log10().item().toDouble());
 }
 plot_losses();
+train_loss();
+validate_loss();
+test_loss();
 }
 
 void MLP::update_params(double learning_rate){
@@ -134,5 +140,32 @@ void MLP::update_params(double learning_rate){
 void MLP::plot_losses(){
     matplotlibcpp::backend("Agg");
     matplotlibcpp::plot(stepi, lossi);
-    matplotlibcpp::show();
+    matplotlibcpp::save("../mlp.png");
+}
+
+void MLP::validate_loss(){
+    torch::NoGradGuard no_grad;
+    auto emb = C.index({Xdev});
+    auto h = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM}).matmul(W1).add(b1).tanh();
+    auto logits = h.matmul(W2) + b2;
+    auto loss = torch::nn::functional::cross_entropy(logits, Ydev);
+    std::cout << "Validation dataset loss = " << loss.item().toDouble() << std::endl;
+}
+
+void MLP::train_loss(){
+    torch::NoGradGuard no_grad;
+    auto emb = C.index({Xtr});
+    auto h = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM}).matmul(W1).add(b1).tanh();
+    auto logits = h.matmul(W2) + b2;
+    auto loss = torch::nn::functional::cross_entropy(logits, Ytr);
+    std::cout << "Validation dataset loss = " << loss.item().toDouble() << std::endl;
+}
+
+void MLP::test_loss(){
+    torch::NoGradGuard no_grad;
+    auto emb = C.index({Xtest});
+    auto h = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM}).matmul(W1).add(b1).tanh();
+    auto logits = h.matmul(W2) + b2;
+    auto loss = torch::nn::functional::cross_entropy(logits, Ytest);
+    std::cout << "Validation dataset loss = " << loss.item().toDouble() << std::endl;
 }

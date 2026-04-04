@@ -1,3 +1,11 @@
+#include <torch/torch.h>
+#include <vector>
+#include "matplotlibcpp.h"
+#include "common.h"
+
+#ifndef INSERT_NEW_LINE
+#define INSERT_NEW_LINE() std::cout << std::endl
+#endif
 class MLP {
 private:
   torch::Tensor X, Y;
@@ -27,4 +35,7 @@ public:
   void clear_grads();
   void update_params(double learning_rate);
   void plot_losses();
+  void validate_loss();
+  void test_loss();
+  void train_loss();
 };

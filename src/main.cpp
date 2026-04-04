@@ -1,14 +1,11 @@
 #include <ATen/ops/softmax.h>
 #include <c10/core/TensorOptions.h>
-#include <queue>
 #include <torch/csrc/autograd/generated/variable_factories.h>
 #include <torch/headeronly/core/DeviceType.h>
 #include <torch/nn/modules/activation.h>
 #include <torch/torch.h>
 #include <torch/types.h>
 #include <torch/utils.h>
-#include <unordered_map>
-#include <vector>
 #define INSERT_NEW_LINE() std::cout << std::endl
  
  
@@ -30,10 +27,10 @@ int main() {
 #if USE_BIGRAM_MODEL
   bigram_model();
 #elif USE_MLP_MODEL
-	MLP mlp = MLP();
+	MLP mlp;
 	mlp.build_dataset();
 	mlp();
-	mlp.train_model(10000);
+	mlp.train_model(100000);
 #endif
 
 // #ifdef DEBUG
