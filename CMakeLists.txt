@@ -29,3 +29,11 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wpedantic
     -O2
 )
+
+# Copy a single file to the folder containing the executable
+add_custom_command(TARGET makemore POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/names.txt"
+            "$<TARGET_FILE_DIR:makemore>/names.txt"
+    COMMENT "Copying names.txt to build directory"
+)

@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/makemore",
             "args": [],
             "env": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/build"
         }
     ]
 }
