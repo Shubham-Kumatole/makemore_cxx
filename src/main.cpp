@@ -1,11 +1,3 @@
-#include <ATen/ops/softmax.h>
-#include <c10/core/TensorOptions.h>
-#include <torch/csrc/autograd/generated/variable_factories.h>
-#include <torch/headeronly/core/DeviceType.h>
-#include <torch/nn/modules/activation.h>
-#include <torch/torch.h>
-#include <torch/types.h>
-#include <torch/utils.h>
 #define INSERT_NEW_LINE() std::cout << std::endl
  
  
@@ -15,10 +7,10 @@
 // #include "bigram.h"
 #include "common.h"
 
-#define USE_BIGRAM_MODEL 1
-#define USE_MLP_MODEL 0
+#define USE_BIGRAM_MODEL 0
+#define USE_MLP_MODEL 1
 
-#ifdef USE_BIGRAM_MODEL
+#if USE_BIGRAM_MODEL
 #include "bigram.h"
 #elif USE_MLP_MODEL
 	#include "mlp.h"
@@ -29,10 +21,11 @@ int main() {
 #if USE_BIGRAM_MODEL
   bigram_model();
 #elif USE_MLP_MODEL
-	MLP mlp;
+	MLP mlp(5,10,100);
 	mlp.build_dataset();
 	mlp();
-	mlp.train_model(100000);
+	mlp.train_model(200000);
+	mlp.sample_model(20);
 #endif
 
 // #ifdef DEBUG
