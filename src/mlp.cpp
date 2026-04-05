@@ -85,12 +85,12 @@ void MLP::init_weights() {
   starting_fresh = false;
   c10::TensorOptions t = c10::TensorOptions();
   t = t.requires_grad(true);
-  W1 = torch::randn({CONTEXT_SIZE * EMBEDDING_SPACE_DIM, NUM_HIDDEN_NEURONS}, g,
+  this->W1 = torch::randn({CONTEXT_SIZE * EMBEDDING_SPACE_DIM, NUM_HIDDEN_NEURONS}, g,
                     t);
-  b1 = torch::randn(NUM_HIDDEN_NEURONS, g, t);
-  W2 = torch::randn({NUM_HIDDEN_NEURONS, VOCABULARY_SIZE}, g, t);
-  b2 = torch::randn(VOCABULARY_SIZE, g, t);
-  C = torch::randn({VOCABULARY_SIZE, EMBEDDING_SPACE_DIM}, g, t);
+  this->b1 = torch::randn(NUM_HIDDEN_NEURONS, g, t);
+  this->W2 = torch::randn({NUM_HIDDEN_NEURONS, VOCABULARY_SIZE}, g, t);
+  this->b2 = torch::randn(VOCABULARY_SIZE, g, t);
+  this->C = torch::randn({VOCABULARY_SIZE, EMBEDDING_SPACE_DIM}, g, t);
 }
 
 void MLP::clear_weights() {

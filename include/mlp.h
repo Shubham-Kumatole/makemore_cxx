@@ -2,12 +2,11 @@
 #include <vector>
 #include "matplotlibcpp.h"
 #include "common.h"
-
 #ifndef INSERT_NEW_LINE
 #define INSERT_NEW_LINE() std::cout << std::endl
 #endif
 class MLP {
-private:
+protected:
   torch::Tensor X, Y;
   int VOCABULARY_SIZE = 27;
   int EMBEDDING_SPACE_DIM = 2;
