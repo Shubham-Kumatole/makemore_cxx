@@ -1,7 +1,7 @@
+#include "common.h"
+#include "matplotlibcpp.h"
 #include <torch/torch.h>
 #include <vector>
-#include "matplotlibcpp.h"
-#include "common.h"
 #ifndef INSERT_NEW_LINE
 #define INSERT_NEW_LINE() std::cout << std::endl
 #endif
@@ -16,11 +16,12 @@ protected:
   torch::Tensor W1, W2, b1, b2, C;
   bool starting_fresh = true;
   torch::Generator g = at::make_generator<at::CPUGeneratorImpl>(2147483647);
-  torch::Tensor Xtr , Ytr, Xdev, Ydev, Ytest, Xtest;
+  torch::Tensor Xtr, Ytr, Xdev, Ydev, Ytest, Xtest;
   std::vector<int> stepi;
   std::vector<double> lossi;
   std::unordered_map<char, int> stoi;
   std::unordered_map<int, char> itos;
+
 public:
   MLP(int context_size = 3, int embedding_space_dim = 2,
       int num_hidden_neurons = 100)
@@ -29,7 +30,7 @@ public:
   void build_dataset();
 
   void test_forward_pass();
-  void operator()(); 
+  void operator()();
   void init_weights();
   void clear_weights();
   void train_model(int num_training_loops);
@@ -40,4 +41,5 @@ public:
   void test_loss();
   void train_loss();
   void sample_model(int num_iters);
+  void plot_activations_of_weights();
 };

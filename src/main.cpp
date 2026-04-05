@@ -4,15 +4,12 @@
 #include "common.h"
 
 #define USE_BIGRAM_MODEL 0
-#define USE_MLP_MODEL 0
-#define BATCH_NORMALIZATION 1
+#define USE_MLP_MODEL 1
 
 #if USE_BIGRAM_MODEL
 #include "bigram.h"
 #elif USE_MLP_MODEL
 #include "mlp.h"
-#elif BATCH_NORMALIZATION
-#include "bn.h"
 #endif
 
 int main() {
@@ -23,12 +20,10 @@ int main() {
   MLP mlp(5, 10, 100);
   mlp.build_dataset();
   mlp();
-  mlp.train_model(200000);
-  mlp.sample_model(20);
-#elif BATCH_NORMALIZATION
-  BN bn;
-  bn.init_weights();
-  bn.plot_histogram_of_weights();
+  mlp.init_weights();
+  mlp.plot_activations_of_weights();
+//   mlp.train_model(200000);
+//   mlp.sample_model(20);
 #endif
   // #ifdef DEBUG
   //   std::cout << xs.size(0);

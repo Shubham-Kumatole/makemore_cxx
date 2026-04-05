@@ -83,20 +83,27 @@ void MLP::operator()() {
 
 void MLP::init_weights() {
   starting_fresh = false;
-  c10::TensorOptions t = c10::TensorOptions();
-  t = t.requires_grad(true);
-  this->W1 = torch::randn({CONTEXT_SIZE * EMBEDDING_SPACE_DIM, NUM_HIDDEN_NEURONS}, g,
-                    t);
-  this->b1 = torch::randn(NUM_HIDDEN_NEURONS, g, t);
-  this->W2 = torch::randn({NUM_HIDDEN_NEURONS, VOCABULARY_SIZE}, g, t);
-  this->b2 = torch::randn(VOCABULARY_SIZE, g, t);
-  this->C = torch::randn({VOCABULARY_SIZE, EMBEDDING_SPACE_DIM}, g, t);
+  double scale = std::sqrt(1.0 / (CONTEXT_SIZE * EMBEDDING_SPACE_DIM));
+  double scale2 = std::sqrt(1.0 / NUM_HIDDEN_NEURONS);
+  W1 = (torch::randn({CONTEXT_SIZE * EMBEDDING_SPACE_DIM, NUM_HIDDEN_NEURONS},
+                     g) *
+        scale)
+           .detach()
+           .requires_grad_(true);
+  W2 = (torch::randn({NUM_HIDDEN_NEURONS, VOCABULARY_SIZE}, g) * scale2)
+           .detach()
+           .requires_grad_(true);
+  b1 = torch::zeros(NUM_HIDDEN_NEURONS).requires_grad_(true);
+  b2 = torch::zeros(VOCABULARY_SIZE).requires_grad_(true);
+  C = torch::randn({VOCABULARY_SIZE, EMBEDDING_SPACE_DIM}, g)
+          .detach()
+          .requires_grad_(true);
 }
 
 void MLP::clear_weights() {
   starting_fresh = true;
-  lossi.clear();
-  stepi.clear();
+  this->lossi.clear();
+  this->stepi.clear();
 }
 
 void MLP::clear_grads() {
@@ -210,4 +217,27 @@ void MLP::sample_model(int num_iters) {
     }
     std::cout << std::endl;
   }
+}
+
+void MLP::plot_activations_of_weights() {
+  assert(W1.defined());
+  int rows = W1.size(0), cols = W1.size(1);
+  float activations[1000][1000];
+  int i, j;
+  for(i = 0; i < rows; i++){
+      for(j = 0; j < cols; j++){
+          activations[i][j] = W1.index({i, j}).item().toFloat() >= 0.95 ? 1.0 : 0.0;
+      }
+  }
+  rows += W2.size(0);
+  cols += W2.size(1);
+  for(int i1 = i; i1 < W2.size(0); i1++, i++){
+    for(int j1 = j; j1 < W2.size(1); j1++, j++){
+      activations[i][j] = W2.index({i1,j1}).item().toFloat() >= 0.95 ? 1.0 : 0.0;
+    }
+  }
+  matplotlibcpp::backend("Agg");
+  matplotlibcpp::figure_size(1000, 1000);
+  matplotlibcpp::imshow(activations[0], rows, cols, 1, {{"cmap", "Blues"}});
+  matplotlibcpp::save("../activations_with_normalization.png");
 }
