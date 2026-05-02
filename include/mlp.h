@@ -12,11 +12,11 @@ protected:
   int EMBEDDING_SPACE_DIM = 2;
   int CONTEXT_SIZE = 3;
   int NUM_HIDDEN_NEURONS = 100;
-  int BATCH_SIZE = 256;
-  torch::Tensor W1, W2, b1, b2, C;
+  int BATCH_SIZE = 32;
+  torch::Tensor W1, W2, b2, C;
   bool starting_fresh = true;
   torch::Generator g = at::make_generator<at::CPUGeneratorImpl>(2147483647);
-  torch::Tensor Xtr, Ytr, Xdev, Ydev, Ytest, Xtest;
+  torch::Tensor Xtr, Ytr, Xdev, Ydev, Ytest, Xtest, bnmean, bnstd, bngain, bnbias;
   std::vector<int> stepi;
   std::vector<double> lossi;
   std::unordered_map<char, int> stoi;

@@ -13,6 +13,8 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/common.cpp
     src/mlp.cpp
+    src/linear.cpp
+    src/cpptorch.cpp
 )
 # Your own headers in include/
 target_include_directories(${PROJECT_NAME} PRIVATE

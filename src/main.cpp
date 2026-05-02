@@ -10,20 +10,19 @@
 #include "bigram.h"
 #elif USE_MLP_MODEL
 #include "mlp.h"
+#include "cpptorch.h"
 #endif
-
 int main() {
 
 #if USE_BIGRAM_MODEL
   bigram_model();
 #elif USE_MLP_MODEL
-  MLP mlp(5, 10, 100);
-  mlp.build_dataset();
-  mlp();
-  mlp.init_weights();
-  mlp.plot_activations_of_weights();
-//   mlp.train_model(200000);
-//   mlp.sample_model(20);
+  // MLP mlp(5, 10, 200);
+  // mlp.build_dataset();
+  // mlp();
+  // mlp.train_model(500000);
+  // mlp.sample_model(20);
+  pytorch_like_training();
 #endif
   // #ifdef DEBUG
   //   std::cout << xs.size(0);
@@ -41,5 +40,5 @@ int main() {
   // #endif
   return 0;
 }
-
+#undef USE_MLP_MODEL 
 #undef USE_BIGRAM_MODEL

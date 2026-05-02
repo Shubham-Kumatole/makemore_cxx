@@ -2,7 +2,10 @@
 #include "matplotlibcpp.h"
 #include <ATen/core/grad_mode.h>
 #include <ATen/ops/multinomial.h>
+#include <ATen/ops/zero.h>
+#include <c10/core/TensorOptions.h>
 #include <torch/nn/functional/loss.h>
+#include <torch/types.h>
 
 void MLP::build_dataset() {
   std::vector<std::string> words;
@@ -83,8 +86,8 @@ void MLP::operator()() {
 
 void MLP::init_weights() {
   starting_fresh = false;
-  double scale = std::sqrt(1.0 / (CONTEXT_SIZE * EMBEDDING_SPACE_DIM));
-  double scale2 = std::sqrt(1.0 / NUM_HIDDEN_NEURONS);
+  double scale = ((double)5/3)/std::sqrt((CONTEXT_SIZE * EMBEDDING_SPACE_DIM));
+  double scale2 = 0.01;//((double)5/3)/std::sqrt(NUM_HIDDEN_NEURONS);
   W1 = (torch::randn({CONTEXT_SIZE * EMBEDDING_SPACE_DIM, NUM_HIDDEN_NEURONS},
                      g) *
         scale)
@@ -93,11 +96,15 @@ void MLP::init_weights() {
   W2 = (torch::randn({NUM_HIDDEN_NEURONS, VOCABULARY_SIZE}, g) * scale2)
            .detach()
            .requires_grad_(true);
-  b1 = torch::zeros(NUM_HIDDEN_NEURONS).requires_grad_(true);
-  b2 = torch::zeros(VOCABULARY_SIZE).requires_grad_(true);
+  // b1 = (torch::randn(NUM_HIDDEN_NEURONS)* 0.01).detach().requires_grad_(true);
+  b2 = (torch::randn(VOCABULARY_SIZE)*0.01).detach().requires_grad_(true);
   C = torch::randn({VOCABULARY_SIZE, EMBEDDING_SPACE_DIM}, g)
           .detach()
           .requires_grad_(true);
+  bngain = torch::ones(NUM_HIDDEN_NEURONS).requires_grad_(true);
+  bnbias = torch::zeros(NUM_HIDDEN_NEURONS).requires_grad_(true);
+  bnmean = torch::zeros(NUM_HIDDEN_NEURONS);
+  bnstd = torch::ones(NUM_HIDDEN_NEURONS);
 }
 
 void MLP::clear_weights() {
@@ -109,9 +116,11 @@ void MLP::clear_weights() {
 void MLP::clear_grads() {
   W1.mutable_grad() = torch::Tensor();
   W2.mutable_grad() = torch::Tensor();
-  b1.mutable_grad() = torch::Tensor();
+  // b1.mutable_grad() = torch::Tensor();
   b2.mutable_grad() = torch::Tensor();
   C.mutable_grad() = torch::Tensor();
+  bnbias.mutable_grad() = torch::Tensor();
+  bngain.mutable_grad() = torch::Tensor();
 }
 void MLP::train_model(int num_training_loops) {
   if (starting_fresh) {
@@ -120,18 +129,25 @@ void MLP::train_model(int num_training_loops) {
   for (int i = 0; i < num_training_loops; i++) {
     torch::Tensor ix = torch::randint(0, Xtr.size(0), {BATCH_SIZE});
     torch::Tensor emb = C.index({Xtr.index({ix})});
-    torch::Tensor h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
-                          .matmul(W1)
-                          .add(b1)
-                          .tanh();
+    torch::Tensor embcat = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM});
+
+    /* Batch normalisation */
+    torch::Tensor hpreact = embcat.matmul(W1);
+    torch::Tensor bnmeani = hpreact.mean(0, true);
+    torch::Tensor bnstdi = hpreact.std(0, true);
+    hpreact = bngain * (hpreact - bnmeani) / bnstdi + bnbias;
+    {
+      torch::NoGradGuard no_grad;
+      bnmean = 0.9*bnmean + 0.1 * bnmeani;
+      bnstd = 0.9*bnstd + 0.1 * bnstdi;
+    }
+    torch::Tensor h = tanh(hpreact);
     torch::Tensor logits = h.matmul(W2).add(b2);
     torch::Tensor loss =
-        at::cross_entropy_loss(logits, Ytr.index({ix})) +
-        0.001 * (W1.square().mean() + b1.square().mean() + W2.square().mean() +
-                 b2.square().mean() + C.square().mean());
+        at::cross_entropy_loss(logits, Ytr.index({ix}));
     clear_grads();
     loss.backward();
-    auto lr = i < 100000 ? 0.1 : 0.01;
+    auto lr = i < 100000 ? 0.1 : (i < 250000? 0.01 : 0.005);
     update_params(lr);
     stepi.push_back(i);
     lossi.push_back(loss.log10().item().toDouble());
@@ -146,9 +162,11 @@ void MLP::update_params(double learning_rate) {
   torch::NoGradGuard no_grad;
   W1.data() += -learning_rate * W1.grad();
   W2.data() += -learning_rate * W2.grad();
-  b1.data() += -learning_rate * b1.grad();
+  // b1.data() += -learning_rate * b1.grad();
   b2.data() += -learning_rate * b2.grad();
   C.data() += -learning_rate * C.grad();
+  bngain.data() += -learning_rate * bngain.grad();
+  bnbias.data() += -learning_rate * bnbias.grad();
 }
 
 void MLP::plot_losses() {
@@ -160,10 +178,10 @@ void MLP::plot_losses() {
 void MLP::validate_loss() {
   torch::NoGradGuard no_grad;
   auto emb = C.index({Xdev});
-  auto h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
-               .matmul(W1)
-               .add(b1)
-               .tanh();
+  auto embcat = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM});
+  auto hpreact = embcat.matmul(W1);
+  hpreact = bngain * (hpreact - bnmean) / bnstd + bnbias;
+  auto h = tanh(hpreact);
   auto logits = h.matmul(W2) + b2;
   auto loss = torch::nn::functional::cross_entropy(logits, Ydev);
   std::cout << "Validation dataset loss = " << loss.item().toDouble()
@@ -173,10 +191,10 @@ void MLP::validate_loss() {
 void MLP::train_loss() {
   torch::NoGradGuard no_grad;
   auto emb = C.index({Xtr});
-  auto h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
-               .matmul(W1)
-               .add(b1)
-               .tanh();
+  auto embcat = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM});
+  auto hpreact = embcat.matmul(W1);
+  hpreact = bngain * (hpreact - bnmean) / bnstd + bnbias;
+  auto h = tanh(hpreact);
   auto logits = h.matmul(W2) + b2;
   auto loss = torch::nn::functional::cross_entropy(logits, Ytr);
   std::cout << "training dataset loss = " << loss.item().toDouble()
@@ -186,10 +204,10 @@ void MLP::train_loss() {
 void MLP::test_loss() {
   torch::NoGradGuard no_grad;
   auto emb = C.index({Xtest});
-  auto h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
-               .matmul(W1)
-               .add(b1)
-               .tanh();
+  auto embcat = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM});
+  auto hpreact = embcat.matmul(W1);
+  hpreact = bngain * (hpreact - bnmean) / bnstd + bnbias;
+  auto h = tanh(hpreact);
   auto logits = h.matmul(W2) + b2;
   auto loss = torch::nn::functional::cross_entropy(logits, Ytest);
   std::cout << "test dataset loss = " << loss.item().toDouble() << std::endl;
@@ -202,10 +220,10 @@ void MLP::sample_model(int num_iters) {
     torch::Tensor ctxt = torch::tensor(vect);
     while (true) {
       auto emb = C.index({ctxt});
-      auto h = emb.view({-1, CONTEXT_SIZE * EMBEDDING_SPACE_DIM})
-                   .matmul(W1)
-                   .add(b1)
-                   .tanh();
+      auto embcat = emb.view({-1, CONTEXT_SIZE*EMBEDDING_SPACE_DIM});
+      auto hpreact = embcat.matmul(W1);
+      hpreact = bngain * (hpreact - bnmean) / bnstd + bnbias;
+      auto h = tanh(hpreact);
       auto logits = h.matmul(W2).add(b2);
       auto counts = logits.exp();
       auto probs = counts / counts.sum(1, true);
@@ -238,6 +256,6 @@ void MLP::plot_activations_of_weights() {
   }
   matplotlibcpp::backend("Agg");
   matplotlibcpp::figure_size(1000, 1000);
-  matplotlibcpp::imshow(activations[0], rows, cols, 1, {{"cmap", "Blues"}});
+  matplotlibcpp::imshow(activations[0], rows, cols, 1, {{"cmap", "Blues"}, {"interpolation", "nearest"}});
   matplotlibcpp::save("../activations_with_normalization.png");
 }
