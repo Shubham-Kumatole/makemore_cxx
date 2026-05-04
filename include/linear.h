@@ -13,11 +13,11 @@ public:
 		return this->out;
 	}
 
-	torch::Tensor parameters() override {
+	std::vector<torch::Tensor*> parameters() override {
 		if(this->bias.defined()){
-			return torch::concat({this->weight, this->bias});
+			return {&this->weight, &this->bias};
 		}
-		return this->weight;
+		return {&this->weight};
 	}
 };
 

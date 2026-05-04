@@ -5,8 +5,8 @@ class BatchNorm1d: public ILayer {
 public:
 	torch::Tensor eps, gain, bias, running_mean, running_var, momentum;
 	BatchNorm1d(size_t dim, double eps = 1e-5, double momentum = 0.1);
-	torch::Tensor parameters() override{
-		return torch::concat({gain, bias});
+	std::vector<torch::Tensor*> parameters() override{
+		return {&gain, &bias};
 	}
 	torch::Tensor operator()(torch::Tensor x) override  {
 		torch::Tensor xvar, xmean;

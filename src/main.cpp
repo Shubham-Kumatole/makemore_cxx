@@ -9,7 +9,7 @@
 #if USE_BIGRAM_MODEL
 #include "bigram.h"
 #elif USE_MLP_MODEL
-#include "mlp.h"
+// #include "mlp.h"
 #include "cpptorch.h"
 #endif
 int main() {

@@ -1,4 +1,5 @@
 #include "cpptorch.h"
+#include "matplotlibcpp.h"
 #include <ATen/core/grad_mode.h>
 #include <memory>
 #include <torch/utils.h>
@@ -34,8 +35,7 @@ void build_dataset(torch::Tensor &X, torch::Tensor& Y) {
   Y = torch::tensor(Y1);
 }
 
-void pytorch_like_training(){
-	std::vector<PLayer> layers = {};
+void make_layers(std::vector<PLayer>& layers){
   layers.push_back(std::make_shared<Linear>(block_size* n_embed, n_hidden, false));
   layers.push_back(std::make_shared<BatchNorm1d>(n_hidden));
   layers.push_back(std::make_shared<Tanh>());
@@ -53,6 +53,30 @@ void pytorch_like_training(){
   layers.push_back(std::make_shared<Tanh>());
   layers.push_back(std::make_shared<Linear>(n_hidden, vocab_size, false));
   layers.push_back(std::make_shared<BatchNorm1d>(vocab_size));
+}
+
+
+void plot_grad_histograms(std::vector<PLayer>& layers){
+  matplotlibcpp::backend("Agg");
+  matplotlibcpp::figure_size(1600, 600);
+  int idx = 0;
+  for(auto &layer: layers){
+    if(auto tl = std::dynamic_pointer_cast<Tanh>(layer)){
+      if(!tl->out.defined())continue;
+      auto grads = tl->out.grad().detach().cpu().contiguous().to(torch::kFloat32);
+      std::vector<float> vec(grads.data_ptr<float>(), grads.data_ptr<float>() + grads.numel());
+      matplotlibcpp::named_hist("Tanh " + std::to_string(idx++), vec);
+    }
+  }
+  matplotlibcpp::legend();
+  matplotlibcpp::title("Gradient distributions");
+  matplotlibcpp::save("../grad_hist.png");
+  matplotlibcpp::clf();
+}
+
+void pytorch_like_training(){
+	std::vector<PLayer> layers = {};
+  make_layers(layers);
   int num_layers = layers.size();
   {
     torch::NoGradGuard no_grad;
@@ -66,15 +90,17 @@ void pytorch_like_training(){
   }
 	torch::Generator g = torch::make_generator<at::CPUGeneratorImpl>(2147483647);
   torch::Tensor C = torch::randn({vocab_size, n_embed}, g);
-  auto parameters = torch::concat(C);
+  std::vector<torch::Tensor*> parameters = {&C};
   for(auto &layer: layers){
-    parameters = torch::concat({parameters, layer->parameters()});
+    auto p = layer->parameters();
+    parameters.insert(parameters.end(), p.begin(), p.end());
   }
-  for(auto &param : parameters){
-    param = param->requires_grad_(true);
+  for(auto *param: parameters){
+    param->requires_grad_(true);
   }
   auto max_steps = 200000;
-  std::vector<double> lossi, ud;  
+  std::vector<double> lossi;  
+  std::vector<std::vector<double>> ud(max_steps);
   torch::Tensor X, Y;
   build_dataset(X, Y);
   torch::Tensor Xtr = X.slice(0, 0, 0.8 * X.size(0), 1);
@@ -93,23 +119,37 @@ void pytorch_like_training(){
       embcat = (*layer)(embcat);
     }
     torch::Tensor loss = at::cross_entropy_loss(embcat, yb);
-    for(auto &p : parameters){
-      p.out.retain_grad();
+    for(auto &layer: layers){
+      layer->out.retain_grad();
     }
-    for(auto &p : parameters){
-      p.mutable_grad() = torch::Tensor();
+    for(auto *p : parameters){
+      p->mutable_grad() = torch::Tensor();
     }
     loss.backward();
     double lr = i < 150000 ? 0.1 : 0.01;
-    for(auto &p : parameters){
-      p.data() += -lr * p.grad();
+    {
+      torch::NoGradGuard no_grad;
+      for(auto *p : parameters){
+        p->data() += -lr * p->grad();
+      }
     }
     if(i%10000 == 0){
       printf("%7d/%7d : %.4f", i, max_steps, loss.item().toFloat());
     }
-    lossi.push_back(loss.item().toFloat());
+    lossi.push_back(loss.log10().item().toFloat());
+    {
+      torch::NoGradGuard no_grad; 
+      for(auto *p: parameters){
+
+        auto a1 = (-lr * p->grad()).std() / p->data().std();
+        auto a2 = a1.log10().item();
+        // std::cout << a2 << std::endl;
+        ud[i].push_back(a2.toDouble());
+      }
+    }
     if(i > 1000)break; 
   }
+  plot_grad_histograms(layers);
 }
 
 

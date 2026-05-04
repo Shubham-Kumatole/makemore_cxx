@@ -14,6 +14,7 @@ add_executable(${PROJECT_NAME}
     src/common.cpp
     src/mlp.cpp
     src/linear.cpp
+    src/batchnorm1d.cpp
     src/cpptorch.cpp
 )
 # Your own headers in include/
