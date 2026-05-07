@@ -2,6 +2,8 @@
 #include "matplotlibcpp.h"
 #include <ATen/core/grad_mode.h>
 #include <memory>
+#include <torch/headeronly/core/DeviceType.h>
+#include <torch/types.h>
 #include <torch/utils.h>
 
 void build_dataset(torch::Tensor &X, torch::Tensor& Y) {
@@ -33,6 +35,7 @@ void build_dataset(torch::Tensor &X, torch::Tensor& Y) {
   }
   X = torch::tensor(X1).reshape({-1, block_size});
   Y = torch::tensor(Y1);
+  std:: cout << "Dataset is built" << std::endl;
 }
 
 void make_layers(std::vector<PLayer>& layers){
@@ -62,10 +65,14 @@ void plot_grad_histograms(std::vector<PLayer>& layers){
   int idx = 0;
   for(auto &layer: layers){
     if(auto tl = std::dynamic_pointer_cast<Tanh>(layer)){
-      if(!tl->out.defined())continue;
-      auto grads = tl->out.grad().detach().cpu().contiguous().to(torch::kFloat32);
-      std::vector<float> vec(grads.data_ptr<float>(), grads.data_ptr<float>() + grads.numel());
-      matplotlibcpp::named_hist("Tanh " + std::to_string(idx++), vec);
+      if(!tl->out.grad().defined())continue;
+      auto grads = tl->out.grad().detach().to(c10::kCPU).contiguous().to(torch::kFloat32);
+      std::cout << "Tanh " << idx << " grad shape: " << tl->out.grad().sizes() << " numel: " << tl->out.grad().numel() << std::endl;
+      std::vector<double> vec(grads.data_ptr<float>(), grads.data_ptr<float>() + grads.numel());
+      std::sort(vec.begin(), vec.end());
+      std::vector<double> xs(vec.size());
+      std::iota(xs.begin(), xs.end(), 0.0);
+      matplotlibcpp::named_plot("Tanh " + std::to_string(idx++), xs, vec);
     }
   }
   matplotlibcpp::legend();
@@ -100,7 +107,7 @@ void pytorch_like_training(){
   }
   auto max_steps = 200000;
   std::vector<double> lossi;  
-  std::vector<std::vector<double>> ud(max_steps);
+  std::vector<std::vector<double>> ud(max_steps/1000);
   torch::Tensor X, Y;
   build_dataset(X, Y);
   torch::Tensor Xtr = X.slice(0, 0, 0.8 * X.size(0), 1);
@@ -137,17 +144,13 @@ void pytorch_like_training(){
       printf("%7d/%7d : %.4f", i, max_steps, loss.item().toFloat());
     }
     lossi.push_back(loss.log10().item().toFloat());
-    {
-      torch::NoGradGuard no_grad; 
+    if (i % 1000 == 0) {
+      torch::NoGradGuard no_grad;
       for(auto *p: parameters){
-
         auto a1 = (-lr * p->grad()).std() / p->data().std();
-        auto a2 = a1.log10().item();
-        // std::cout << a2 << std::endl;
-        ud[i].push_back(a2.toDouble());
+        ud[i/1000].push_back(a1.log10().item().toDouble());
       }
-    }
-    if(i > 1000)break; 
+    }    // if(i > 1000)break; 
   }
   plot_grad_histograms(layers);
 }
